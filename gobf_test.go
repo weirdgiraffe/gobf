@@ -90,6 +90,42 @@ func TestDataPointerOperations(t *testing.T) {
 	}
 }
 
+var moveCpOperationsTests = []struct {
+	code             string
+	initialIp        int
+	initialCellValue byte
+	expectedIp       int
+	expectedError    bool
+}{
+	{"[+]", 0, 0, 2, false},
+	{"[+]", 0, 1, 0, false},
+	{"[++", 0, 0, 2, true},
+	{"[+]", 2, 1, 0, false},
+	{"[+]", 2, 0, 2, false},
+	{"++]", 2, 1, 0, true},
+}
+
+func TestMoveCpOperations(t *testing.T) {
+	for _, tt := range moveCpOperationsTests {
+		p := &Program{
+			code: []byte(tt.code),
+			ip:   tt.initialIp,
+			data: make([]byte, 10),
+		}
+		p.data[p.dp] = tt.initialCellValue
+		err := p.runCmd()
+		if err != nil {
+			if tt.expectedError == false {
+				t.Fatalf("%v error: %v", tt, err)
+			}
+		}
+		if tt.expectedIp != p.ip {
+			t.Errorf("%v value mismatch: %v != %v",
+				tt, p.ip, tt.expectedIp)
+		}
+	}
+}
+
 func TestRunHelloWorld(t *testing.T) {
 	helloWorldText := "++++++++++[>+++++++" +
 		">++++++++++>+++>+<<<<-]>++.>+.+++" +

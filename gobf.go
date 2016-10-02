@@ -50,6 +50,22 @@ func (p *Program) nextCmd() bool {
 	return false
 }
 
+func (p *Program) incCmdPointer() error {
+	if p.ip+1 >= len(p.code) {
+		return fmt.Errorf("Increment cmd pointer above code len")
+	}
+	p.ip++
+	return nil
+}
+
+func (p *Program) decCmdPointer() error {
+	if p.ip == 0 {
+		return fmt.Errorf("Decrement cmd pointer below code len")
+	}
+	p.ip--
+	return nil
+}
+
 func (p *Program) cmd() byte {
 	return p.code[p.ip]
 }
@@ -68,6 +84,10 @@ func (p *Program) runCmd() error {
 		return p.incDataPointer()
 	case p.cmd() == '<':
 		return p.decDataPointer()
+	case p.cmd() == '[':
+		return p.goForward()
+	case p.cmd() == ']':
+		return p.goBackward()
 	}
 	return fmt.Errorf("Bad cmd symbol: '%c' (%v)", p.cmd(), p.cmd())
 }
@@ -103,4 +123,30 @@ func (p *Program) decDataPointer() error {
 	}
 	p.dp--
 	return nil
+}
+
+func (p *Program) goForward() error {
+	if p.cellValue() != 0 {
+		return nil
+	}
+	var err error
+	for ; err == nil; err = p.incCmdPointer() {
+		if p.cmd() == ']' {
+			return nil
+		}
+	}
+	return fmt.Errorf("No closing ']' found")
+}
+
+func (p *Program) goBackward() error {
+	if p.cellValue() == 0 {
+		return nil
+	}
+	var err error
+	for ; err == nil; err = p.decCmdPointer() {
+		if p.cmd() == '[' {
+			return nil
+		}
+	}
+	return fmt.Errorf("No closing '[' found")
 }
