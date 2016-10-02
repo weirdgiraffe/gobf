@@ -1,3 +1,9 @@
+//
+// Copyright © 2016 weirdgiraffe <weirdgiraffe@cyberzoo.xyz>
+//
+// Distributed under terms of the MIT license.
+//
+
 package gobf
 
 import (
