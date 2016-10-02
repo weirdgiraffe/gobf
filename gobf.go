@@ -9,6 +9,7 @@ import (
 // Program represents brainfuck programm
 type Program struct {
 	code []byte
+	ip   int // next instruction index in code
 }
 
 // NewProgram initialize new program
@@ -19,6 +20,7 @@ func NewProgram(r io.Reader) *Program {
 	}
 	return &Program{
 		code: code,
+		ip:   -1,
 	}
 }
 
@@ -34,9 +36,13 @@ func (p *Program) Run() error {
 }
 
 func (p *Program) nextCmd() bool {
+	if p.ip+1 < len(p.code) {
+		p.ip++
+		return true
+	}
 	return false
 }
 
 func (p *Program) runCmd() error {
-	return fmt.Errorf("Bad cmd symbol: %v", p.cmd)
+	return fmt.Errorf("Bad cmd symbol: '%c' (%v)", p.code[p.ip], p.code[p.ip])
 }
