@@ -43,6 +43,11 @@ func (p *Program) nextCmd() bool {
 	return false
 }
 
+func (p *Program) cmd() byte {
+	return p.code[p.ip]
+}
+
 func (p *Program) runCmd() error {
-	return fmt.Errorf("Bad cmd symbol: '%c' (%v)", p.code[p.ip], p.code[p.ip])
+
+	return fmt.Errorf("Bad cmd symbol: '%c' (%v)", p.cmd(), p.cmd())
 }
