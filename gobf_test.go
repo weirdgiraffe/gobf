@@ -26,6 +26,38 @@ func TestNextCmd(t *testing.T) {
 	}
 }
 
+var cellValueOperationsTests = []struct {
+	cmd           byte
+	initialValue  byte
+	expectedValue byte
+	expectedError bool
+}{
+	{'+', 0, 1, false},
+	{'+', 255, 255, true},
+	{'-', 1, 0, false},
+	{'-', 0, 0, true},
+}
+
+func TestCellValueOperations(t *testing.T) {
+	for _, tt := range cellValueOperationsTests {
+		p := &Program{
+			code: []byte{tt.cmd},
+			data: make([]byte, 1),
+		}
+		p.data[0] = tt.initialValue
+		err := p.runCmd()
+		if err != nil {
+			if tt.expectedError == false {
+				t.Fatalf("%v error: %v", tt, err)
+			}
+		}
+		if tt.expectedValue != p.cellValue() {
+			t.Errorf("%c %v value mismatch: %v != %v",
+				tt.cmd, tt, p.cellValue(), tt.expectedValue)
+		}
+	}
+}
+
 func TestRunHelloWorld(t *testing.T) {
 	helloWorldText := "++++++++++[>+++++++" +
 		">++++++++++>+++>+<<<<-]>++.>+.+++" +

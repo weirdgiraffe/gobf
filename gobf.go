@@ -6,10 +6,16 @@ import (
 	"io/ioutil"
 )
 
+// DataChunkSize count of bytes to use when need ot
+// increase count of program data cells
+var DataChunkSize = 4096
+
 // Program represents brainfuck programm
 type Program struct {
 	code []byte
-	ip   int // next instruction index in code
+	ip   int // current instruction index in code
+	data []byte
+	dp   int // current data cell index
 }
 
 // NewProgram initialize new program
@@ -21,6 +27,7 @@ func NewProgram(r io.Reader) *Program {
 	return &Program{
 		code: code,
 		ip:   -1,
+		data: make([]byte, DataChunkSize),
 	}
 }
 
@@ -47,7 +54,32 @@ func (p *Program) cmd() byte {
 	return p.code[p.ip]
 }
 
-func (p *Program) runCmd() error {
+func (p *Program) cellValue() byte {
+	return p.data[p.dp]
+}
 
+func (p *Program) runCmd() error {
+	switch {
+	case p.cmd() == '+':
+		return p.incDataCell()
+	case p.cmd() == '-':
+		return p.decDataCell()
+	}
 	return fmt.Errorf("Bad cmd symbol: '%c' (%v)", p.cmd(), p.cmd())
+}
+
+func (p *Program) incDataCell() error {
+	if p.cellValue() == 255 {
+		return fmt.Errorf("Cell #%d overflow", p.dp)
+	}
+	p.data[p.dp]++
+	return nil
+}
+
+func (p *Program) decDataCell() error {
+	if p.cellValue() == 0 {
+		return fmt.Errorf("Cell #%d underflow", p.dp)
+	}
+	p.data[p.dp]--
+	return nil
 }
