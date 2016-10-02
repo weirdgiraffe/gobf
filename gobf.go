@@ -11,6 +11,9 @@ import (
 // increase count of program data cells
 var DataChunkSize = 4096
 
+// AllowOverflows do allow overflow (255+1) and underflow (0-1) of a cell value
+var AllowOverflows = true
+
 // Program represents brainfuck programm
 type Program struct {
 	code   []byte
@@ -102,7 +105,7 @@ func (p *Program) runCmd() error {
 }
 
 func (p *Program) incDataCell() error {
-	if p.cellValue() == 255 {
+	if p.cellValue() == 255 && AllowOverflows == false {
 		return fmt.Errorf("Cell #%d overflow (offset: %d)", p.dp, p.ip)
 	}
 	p.data[p.dp]++
@@ -110,7 +113,7 @@ func (p *Program) incDataCell() error {
 }
 
 func (p *Program) decDataCell() error {
-	if p.cellValue() == 0 {
+	if p.cellValue() == 0 && AllowOverflows == false {
 		return fmt.Errorf("Cell #%d underflow (offset: %d)", p.dp, p.ip)
 	}
 	p.data[p.dp]--

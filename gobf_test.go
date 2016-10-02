@@ -29,19 +29,24 @@ func TestNextCmd(t *testing.T) {
 }
 
 var cellValueOperationsTests = []struct {
-	cmd           byte
-	initialValue  byte
-	expectedValue byte
-	expectedError bool
+	cmd            byte
+	initialValue   byte
+	allowOverflows bool
+	expectedValue  byte
+	expectedError  bool
 }{
-	{'+', 0, 1, false},
-	{'+', 255, 255, true},
-	{'-', 1, 0, false},
-	{'-', 0, 0, true},
+	{'+', 0, false, 1, false},
+	{'+', 255, true, 0, false},
+	{'+', 255, false, 255, true},
+	{'-', 1, false, 0, false},
+	{'-', 0, false, 0, true},
+	{'-', 0, true, 255, false},
 }
 
 func TestCellValueOperations(t *testing.T) {
+	defer func() { AllowOverflows = true }()
 	for _, tt := range cellValueOperationsTests {
+		AllowOverflows = tt.allowOverflows
 		p := &Program{
 			code: []byte{tt.cmd},
 			data: make([]byte, 1),
