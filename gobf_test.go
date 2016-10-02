@@ -9,9 +9,27 @@ package gobf
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 )
+
+type badReader struct {
+}
+
+func (r badReader) Read(b []byte) (int, error) {
+	return 0, fmt.Errorf("some error")
+}
+
+func TestNewProgramPanicOnReaderError(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("No panic on Reader Error")
+		}
+	}()
+	r := badReader{}
+	_ = NewProgram(r)
+}
 
 var nextCmdTests = []struct {
 	code     []byte
@@ -144,10 +162,13 @@ func TestMoveCpOperations(t *testing.T) {
 func TestPrintCell(t *testing.T) {
 	var b bytes.Buffer
 	testw := bufio.NewWriter(&b)
-	p := &Program{data: make([]byte, 1), dp: 0, writer: testw}
 	expected := byte('A')
-	p.data[0] = expected
-	err := p.printCell()
+	p := &Program{
+		code:   []byte("."),
+		data:   []byte{expected},
+		writer: testw,
+	}
+	err := p.runCmd()
 	if err != nil {
 		t.Fatalf("Failed to print cell value")
 	}
@@ -161,15 +182,39 @@ func TestPrintCell(t *testing.T) {
 }
 
 func TestScanCell(t *testing.T) {
-	b := []byte("A")
-	testr := bytes.NewReader(b)
-	p := &Program{data: make([]byte, 1), dp: 0, reader: testr}
-	err := p.scanCell()
+	expected := []byte("A")
+	testr := bytes.NewReader(expected)
+	p := &Program{
+		code:   []byte(","),
+		data:   make([]byte, 1),
+		reader: testr,
+	}
+	err := p.runCmd()
 	if err != nil {
 		t.Fatalf("Failed to scan cell value")
 	}
-	if b[0] != p.cellValue() {
-		t.Fatalf("Scan mismatch: %v != %v", b[0], p.cellValue())
+	if expected[0] != p.cellValue() {
+		t.Fatalf("Scan mismatch: %v != %v", expected[0], p.cellValue())
+	}
+}
+
+var errorHandlingTests = []struct {
+	code          string
+	expectedError bool
+}{
+	{".++>.++HELLO WORLD++.<++.", false},
+	{"><<", true},
+}
+
+func TestRunErrorHadling(t *testing.T) {
+	for _, tt := range errorHandlingTests {
+		p := NewProgram(strings.NewReader(tt.code))
+		err := p.Run()
+		if err != nil {
+			if tt.expectedError == false {
+				t.Fatalf("%v error: %v", tt, err)
+			}
+		}
 	}
 }
 
