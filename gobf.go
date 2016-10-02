@@ -121,7 +121,7 @@ func (p *Program) decDataCell() error {
 }
 
 func (p *Program) incDataPointer() error {
-	if p.dp+1 == len(p.data) {
+	if p.dp+1 >= len(p.data) {
 		newData := append(p.data, make([]byte, DataChunkSize)...)
 		p.data = newData
 	}
