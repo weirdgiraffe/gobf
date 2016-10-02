@@ -64,6 +64,10 @@ func (p *Program) runCmd() error {
 		return p.incDataCell()
 	case p.cmd() == '-':
 		return p.decDataCell()
+	case p.cmd() == '>':
+		return p.incDataPointer()
+	case p.cmd() == '<':
+		return p.decDataPointer()
 	}
 	return fmt.Errorf("Bad cmd symbol: '%c' (%v)", p.cmd(), p.cmd())
 }
@@ -81,5 +85,22 @@ func (p *Program) decDataCell() error {
 		return fmt.Errorf("Cell #%d underflow", p.dp)
 	}
 	p.data[p.dp]--
+	return nil
+}
+
+func (p *Program) incDataPointer() error {
+	if p.dp+1 == len(p.data) {
+		newData := append(p.data, make([]byte, DataChunkSize)...)
+		p.data = newData
+	}
+	p.dp++
+	return nil
+}
+
+func (p *Program) decDataPointer() error {
+	if p.dp == 0 {
+		return fmt.Errorf("Data pointer underfow")
+	}
+	p.dp--
 	return nil
 }

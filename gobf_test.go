@@ -58,6 +58,38 @@ func TestCellValueOperations(t *testing.T) {
 	}
 }
 
+var dataPointerOperationsTests = []struct {
+	cmd           byte
+	initialDp     int
+	expectedDp    int
+	expectedError bool
+}{
+	{'>', 0, 1, false},
+	{'>', DataChunkSize, DataChunkSize + 1, false},
+	{'<', 1, 0, false},
+	{'<', 0, 0, true},
+}
+
+func TestDataPointerOperations(t *testing.T) {
+	for _, tt := range dataPointerOperationsTests {
+		p := &Program{
+			code: []byte{tt.cmd},
+			data: make([]byte, DataChunkSize),
+			dp:   tt.initialDp,
+		}
+		err := p.runCmd()
+		if err != nil {
+			if tt.expectedError == false {
+				t.Fatalf("%c %v error: %v", tt.cmd, tt, err)
+			}
+		}
+		if tt.expectedDp != p.dp {
+			t.Errorf("%c %v value mismatch: %v != %v",
+				tt.cmd, tt, p.dp, tt.expectedDp)
+		}
+	}
+}
+
 func TestRunHelloWorld(t *testing.T) {
 	helloWorldText := "++++++++++[>+++++++" +
 		">++++++++++>+++>+<<<<-]>++.>+.+++" +
