@@ -1,6 +1,8 @@
 package gobf
 
 import (
+	"bufio"
+	"bytes"
 	"strings"
 	"testing"
 )
@@ -126,14 +128,61 @@ func TestMoveCpOperations(t *testing.T) {
 	}
 }
 
+func TestPrintCell(t *testing.T) {
+	var b bytes.Buffer
+	testw := bufio.NewWriter(&b)
+	p := &Program{data: make([]byte, 1), dp: 0, writer: testw}
+	expected := byte('A')
+	p.data[0] = expected
+	err := p.printCell()
+	if err != nil {
+		t.Fatalf("Failed to print cell value")
+	}
+	testw.Flush()
+	if b.Len() == 0 {
+		t.Fatalf("Output buffer is empty")
+	}
+	if b.Bytes()[0] != expected {
+		t.Fatalf("Output mismatch: %v != %v", expected, b.Bytes())
+	}
+}
+
+func TestScanCell(t *testing.T) {
+	b := []byte("A")
+	testr := bytes.NewReader(b)
+	p := &Program{data: make([]byte, 1), dp: 0, reader: testr}
+	err := p.scanCell()
+	if err != nil {
+		t.Fatalf("Failed to scan cell value")
+	}
+	if b[0] != p.cellValue() {
+		t.Fatalf("Scan mismatch: %v != %v", b[0], p.cellValue())
+	}
+}
+
 func TestRunHelloWorld(t *testing.T) {
 	helloWorldText := "++++++++++[>+++++++" +
 		">++++++++++>+++>+<<<<-]>++.>+.+++" +
 		"++++..+++.>++.<<+++++++++++++++.>" +
 		".+++.------.--------.>+.>."
+	expected := "Hello World!\n"
+	var b bytes.Buffer
 	p := NewProgram(strings.NewReader(helloWorldText))
+	bufwriter := bufio.NewWriter(&b)
+	p.writer = bufwriter
 	err := p.Run()
 	if err != nil {
 		t.Errorf("Failed to Run 'Hello world' program: %v", err)
 	}
+	bufwriter.Flush()
+	if b.Len() == 0 {
+		t.Fatalf("Output buffer is empty")
+	}
+
+	if string(b.Bytes()) != expected {
+		t.Fatalf("Output mismatch: %v != %v",
+			string(b.Bytes()),
+			expected)
+	}
+
 }

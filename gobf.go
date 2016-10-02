@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
 )
 
 // DataChunkSize count of bytes to use when need ot
@@ -12,10 +13,12 @@ var DataChunkSize = 4096
 
 // Program represents brainfuck programm
 type Program struct {
-	code []byte
-	ip   int // current instruction index in code
-	data []byte
-	dp   int // current data cell index
+	code   []byte
+	ip     int // current instruction index in code
+	data   []byte
+	dp     int // current data cell index
+	reader io.Reader
+	writer io.Writer
 }
 
 // NewProgram initialize new program
@@ -25,9 +28,11 @@ func NewProgram(r io.Reader) *Program {
 		panic(fmt.Sprintf("Failed to read program code: %v", err))
 	}
 	return &Program{
-		code: code,
-		ip:   -1,
-		data: make([]byte, DataChunkSize),
+		code:   code,
+		ip:     -1,
+		data:   make([]byte, DataChunkSize),
+		reader: os.Stdin,
+		writer: os.Stdout,
 	}
 }
 
@@ -39,7 +44,7 @@ func (p *Program) Run() error {
 			return err
 		}
 	}
-	return fmt.Errorf("Not implemented")
+	return nil
 }
 
 func (p *Program) nextCmd() bool {
@@ -88,6 +93,10 @@ func (p *Program) runCmd() error {
 		return p.goForward()
 	case p.cmd() == ']':
 		return p.goBackward()
+	case p.cmd() == '.':
+		return p.printCell()
+	case p.cmd() == ',':
+		return p.scanCell()
 	}
 	return fmt.Errorf("Bad cmd symbol: '%c' (%v)", p.cmd(), p.cmd())
 }
@@ -149,4 +158,18 @@ func (p *Program) goBackward() error {
 		}
 	}
 	return fmt.Errorf("No closing '[' found")
+}
+
+func (p *Program) printCell() error {
+	_, err := fmt.Fprintf(p.writer, "%c", p.cellValue())
+	return err
+}
+
+func (p *Program) scanCell() error {
+	var b = make([]byte, 1)
+	_, err := p.reader.Read(b)
+	if err == nil {
+		p.data[p.dp] = b[0]
+	}
+	return err
 }
