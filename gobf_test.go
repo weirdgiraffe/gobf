@@ -102,9 +102,11 @@ var moveCpOperationsTests = []struct {
 	{"[+]", 0, 0, 2, false},
 	{"[+]", 0, 1, 0, false},
 	{"[++", 0, 0, 2, true},
+	{"[+[++]+]", 0, 0, 7, false},
 	{"[+]", 2, 1, 0, false},
 	{"[+]", 2, 0, 2, false},
 	{"++]", 2, 1, 0, true},
+	{"[+[++]+]", 7, 1, 0, false},
 }
 
 func TestMoveCpOperations(t *testing.T) {

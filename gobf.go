@@ -98,12 +98,12 @@ func (p *Program) runCmd() error {
 	case p.cmd() == ',':
 		return p.scanCell()
 	}
-	return fmt.Errorf("Bad cmd symbol: '%c' (%v)", p.cmd(), p.cmd())
+	return nil // simply ignore all unused symbols
 }
 
 func (p *Program) incDataCell() error {
 	if p.cellValue() == 255 {
-		return fmt.Errorf("Cell #%d overflow", p.dp)
+		return fmt.Errorf("Cell #%d overflow (offset: %d)", p.dp, p.ip)
 	}
 	p.data[p.dp]++
 	return nil
@@ -111,7 +111,7 @@ func (p *Program) incDataCell() error {
 
 func (p *Program) decDataCell() error {
 	if p.cellValue() == 0 {
-		return fmt.Errorf("Cell #%d underflow", p.dp)
+		return fmt.Errorf("Cell #%d underflow (offset: %d)", p.dp, p.ip)
 	}
 	p.data[p.dp]--
 	return nil
@@ -139,9 +139,14 @@ func (p *Program) goForward() error {
 		return nil
 	}
 	var err error
-	for ; err == nil; err = p.incCmdPointer() {
-		if p.cmd() == ']' {
-			return nil
+	for seen := -1; err == nil; err = p.incCmdPointer() {
+		if p.cmd() == '[' {
+			seen++
+		} else if p.cmd() == ']' {
+			if seen == 0 {
+				return nil
+			}
+			seen--
 		}
 	}
 	return fmt.Errorf("No closing ']' found")
@@ -152,9 +157,14 @@ func (p *Program) goBackward() error {
 		return nil
 	}
 	var err error
-	for ; err == nil; err = p.decCmdPointer() {
-		if p.cmd() == '[' {
-			return nil
+	for seen := -1; err == nil; err = p.decCmdPointer() {
+		if p.cmd() == ']' {
+			seen++
+		} else if p.cmd() == '[' {
+			if seen == 0 {
+				return nil
+			}
+			seen--
 		}
 	}
 	return fmt.Errorf("No closing '[' found")
