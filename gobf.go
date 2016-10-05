@@ -45,6 +45,11 @@ func NewProgram(r io.Reader) *Program {
 	}
 }
 
+// Reset resets insturcion index to 0
+func (p *Program) Reset() {
+	p.ip = 0
+}
+
 // Run runs brainfuck program
 func (p *Program) Run() error {
 	for p.nextCmd() {
