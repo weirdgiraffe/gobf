@@ -45,9 +45,9 @@ func NewProgram(r io.Reader) *Program {
 	}
 }
 
-// Reset resets insturcion index to 0
+// Reset resets program. RUn() will run program again
 func (p *Program) Reset() {
-	p.ip = 0
+	p.ip = -1
 }
 
 // Run runs brainfuck program
