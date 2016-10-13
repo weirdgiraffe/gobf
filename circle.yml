@@ -1,0 +1,13 @@
+machine:
+  environment: 
+    COVERALLS_TOKEN: "WauowA6hxTX9948RJnOcSeUbf1omc7lsv"
+
+dependencies:
+  pre:
+    - go get github.com/axw/gocov/gocov
+    - go get github.com/mattn/goveralls
+
+test:
+  override:
+    - goveralls -service circleci -repotoken $COVERALLS_TOKEN
+
