@@ -283,5 +283,6 @@ by jim crawford (http://www (dot) goombas (dot) org/)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		p.Run()
+		p.Reset()
 	}
 }

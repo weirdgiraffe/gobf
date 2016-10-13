@@ -48,6 +48,8 @@ func NewProgram(r io.Reader) *Program {
 // Reset resets program. RUn() will run program again
 func (p *Program) Reset() {
 	p.ip = -1
+	p.dp = 0
+	p.data = make([]byte, DataChunkSize)
 }
 
 // Run runs brainfuck program
