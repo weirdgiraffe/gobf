@@ -22,19 +22,19 @@ func (r badReader) Read(b []byte) (int, error) {
 	return 0, fmt.Errorf("some error")
 }
 
-func TestNewProgramPanicOnReaderError(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("No panic on Reader Error")
-		}
-	}()
+func TestLoadErrorOnReaderError(t *testing.T) {
 	r := badReader{}
-	_ = NewProgram(r)
+	p := NewProgram()
+	err := p.Load(r)
+	if err == nil {
+		t.Errorf("No error on Reader Error")
+	}
+
 }
 
 var nextCmdTests = []struct {
 	code     []byte
-	ip       int
+	cmdIndx  int
 	expected bool
 }{
 	{[]byte{'+'}, -1, true},
@@ -45,10 +45,10 @@ var nextCmdTests = []struct {
 
 func TestNextCmd(t *testing.T) {
 	for _, tt := range nextCmdTests {
-		p := &Program{code: tt.code, ip: tt.ip}
+		p := &Program{code: tt.code, cmdIndx: tt.cmdIndx}
 		if ok := p.nextCmd(); ok != tt.expected {
 			t.Errorf("code:'%v' ip:%d nextCmd(): %v != %v",
-				tt.code, tt.ip, tt.expected, ok)
+				tt.code, tt.cmdIndx, tt.expected, ok)
 		}
 	}
 }
@@ -72,29 +72,26 @@ func TestCellValueOperations(t *testing.T) {
 	defer func() { AllowOverflows = true }()
 	for _, tt := range cellValueOperationsTests {
 		AllowOverflows = tt.allowOverflows
-		p := &Program{
-			code: []byte{tt.cmd},
-			data: make([]byte, 1),
-		}
+		p := &Program{data: make([]byte, 1)}
 		p.data[0] = tt.initialValue
-		err := p.runCmd()
+		err := p.runCmd(tt.cmd)
 		if err != nil {
 			if tt.expectedError == false {
 				t.Fatalf("%v error: %v", tt, err)
 			}
 		}
-		if tt.expectedValue != p.cellValue() {
+		if tt.expectedValue != p.currentCell() {
 			t.Errorf("%c %v value mismatch: %v != %v",
-				tt.cmd, tt, p.cellValue(), tt.expectedValue)
+				tt.cmd, tt, p.currentCell(), tt.expectedValue)
 		}
 	}
 }
 
 var dataPointerOperationsTests = []struct {
-	cmd           byte
-	initialDp     int
-	expectedDp    int
-	expectedError bool
+	cmd              byte
+	initialCellIndx  int
+	expectedCellIndx int
+	expectedError    bool
 }{
 	{'>', 0, 1, false},
 	{'>', DataChunkSize, DataChunkSize + 1, false},
@@ -105,57 +102,54 @@ var dataPointerOperationsTests = []struct {
 func TestDataPointerOperations(t *testing.T) {
 	for _, tt := range dataPointerOperationsTests {
 		p := &Program{
-			code: []byte{tt.cmd},
-			data: make([]byte, DataChunkSize),
-			dp:   tt.initialDp,
+			data:     make([]byte, DataChunkSize),
+			cellIndx: tt.initialCellIndx,
 		}
-		err := p.runCmd()
+		err := p.runCmd(tt.cmd)
 		if err != nil {
 			if tt.expectedError == false {
 				t.Fatalf("%c %v error: %v", tt.cmd, tt, err)
 			}
 		}
-		if tt.expectedDp != p.dp {
+		if tt.expectedCellIndx != p.cellIndx {
 			t.Errorf("%c %v value mismatch: %v != %v",
-				tt.cmd, tt, p.dp, tt.expectedDp)
+				tt.cmd, tt, p.cellIndx, tt.expectedCellIndx)
 		}
 	}
 }
 
 var moveCpOperationsTests = []struct {
 	code             string
-	initialIp        int
+	initialCmdIndx   int
 	initialCellValue byte
-	expectedIp       int
+	expectedCmdIndx  int
 	expectedError    bool
 }{
 	{"[+]", 0, 0, 2, false},
 	{"[+]", 0, 1, 0, false},
-	{"[++", 0, 0, 2, true},
+	{"[++", 0, 0, 0, true},
 	{"[+[++]+]", 0, 0, 7, false},
 	{"[+]", 2, 1, 0, false},
 	{"[+]", 2, 0, 2, false},
-	{"++]", 2, 1, 0, true},
+	{"++]", 2, 1, 2, true},
 	{"[+[++]+]", 7, 1, 0, false},
 }
 
 func TestMoveCpOperations(t *testing.T) {
 	for _, tt := range moveCpOperationsTests {
-		p := &Program{
-			code: []byte(tt.code),
-			ip:   tt.initialIp,
-			data: make([]byte, 10),
-		}
-		p.data[p.dp] = tt.initialCellValue
-		err := p.runCmd()
+		p := NewProgram()
+		p.code = []byte(tt.code)
+		p.cmdIndx = tt.initialCmdIndx
+		p.data[0] = tt.initialCellValue
+		err := p.runOneCmd()
 		if err != nil {
 			if tt.expectedError == false {
 				t.Fatalf("%v error: %v", tt, err)
 			}
 		}
-		if tt.expectedIp != p.ip {
+		if tt.expectedCmdIndx != p.cmdIndx {
 			t.Errorf("%v value mismatch: %v != %v",
-				tt, p.ip, tt.expectedIp)
+				tt, p.cmdIndx, tt.expectedCmdIndx)
 		}
 	}
 }
@@ -165,11 +159,10 @@ func TestPrintCell(t *testing.T) {
 	testw := bufio.NewWriter(&b)
 	expected := byte('A')
 	p := &Program{
-		code:   []byte("."),
 		data:   []byte{expected},
 		writer: testw,
 	}
-	err := p.runCmd()
+	err := p.runCmd('.')
 	if err != nil {
 		t.Fatalf("Failed to print cell value")
 	}
@@ -186,16 +179,15 @@ func TestScanCell(t *testing.T) {
 	expected := []byte("A")
 	testr := bytes.NewReader(expected)
 	p := &Program{
-		code:   []byte(","),
 		data:   make([]byte, 1),
 		reader: testr,
 	}
-	err := p.runCmd()
+	err := p.runCmd(',')
 	if err != nil {
 		t.Fatalf("Failed to scan cell value")
 	}
-	if expected[0] != p.cellValue() {
-		t.Fatalf("Scan mismatch: %v != %v", expected[0], p.cellValue())
+	if expected[0] != p.currentCell() {
+		t.Fatalf("Scan mismatch: %v != %v", expected[0], p.currentCell())
 	}
 }
 
@@ -209,7 +201,8 @@ var errorHandlingTests = []struct {
 
 func TestRunErrorHadling(t *testing.T) {
 	for _, tt := range errorHandlingTests {
-		p := NewProgram(strings.NewReader(tt.code))
+		p := NewProgram()
+		p.Load(strings.NewReader(tt.code))
 		err := p.Run()
 		if err != nil {
 			if tt.expectedError == false {
@@ -226,7 +219,8 @@ func TestRunHelloWorld(t *testing.T) {
 		".+++.------.--------.>+.>."
 	expected := "Hello World!\n"
 	var b bytes.Buffer
-	p := NewProgram(strings.NewReader(helloWorldText))
+	p := NewProgram()
+	p.Load(strings.NewReader(helloWorldText))
 	bufwriter := bufio.NewWriter(&b)
 	p.writer = bufwriter
 	err := p.Run()
@@ -278,7 +272,8 @@ by jim crawford (http://www (dot) goombas (dot) org/)
 .---.++++++.-------.----------.[-]>[-]<<<.[-]]<[>+>+<<-]>>[-
 <<+>>]++++>+<[-<->]<[[-]>>-<<]>>[[-]<<+>>]<<[[-]++++++++++.[
 -]<[-]>]<+<]`
-	p := NewProgram(strings.NewReader(bfBeerText))
+	p := NewProgram()
+	p.Load(strings.NewReader(bfBeerText))
 	p.writer = ioutil.Discard
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
