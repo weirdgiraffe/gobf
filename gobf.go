@@ -15,7 +15,7 @@ import (
 
 // DataChunkSize count of bytes to use when need ot
 // increase count of program data cells
-var DataChunkSize = 4096
+var DataChunkSize = 30000
 
 // AllowOverflows do allow overflow (255+1) and underflow (0-1) of a cell value
 var AllowOverflows = true
