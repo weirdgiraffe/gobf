@@ -150,10 +150,10 @@ func (p *Program) cmdPrevCell() error {
 
 func (p *Program) _cmdForward() error {
 	for seen, i := 0, p.cmdIndx+1; i < len(p.code); i++ {
-		switch {
-		case p.cmd(i) == '[':
+		switch p.cmd(i) {
+		case '[':
 			seen++
-		case p.cmd(i) == ']':
+		case ']':
 			if seen == 0 {
 				p.cmdIndx = i
 				return nil
@@ -175,10 +175,10 @@ func (p *Program) cmdForward() error {
 
 func (p *Program) _cmdBackward() error {
 	for seen, i := 0, p.cmdIndx-1; i >= 0; i-- {
-		switch {
-		case p.cmd(i) == ']':
+		switch p.cmd(i) {
+		case ']':
 			seen++
-		case p.cmd(i) == '[':
+		case '[':
 			if seen == 0 {
 				p.cmdIndx = i
 				return nil
