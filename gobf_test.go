@@ -74,7 +74,7 @@ func TestCellValueOperations(t *testing.T) {
 		AllowOverflows = tt.allowOverflows
 		p := &Program{data: make([]byte, 1)}
 		p.data[0] = tt.initialValue
-		err := p.runCmd(tt.cmd)
+		err := p._runCmd(tt.cmd)
 		if err != nil {
 			if tt.expectedError == false {
 				t.Fatalf("%v error: %v", tt, err)
@@ -105,7 +105,7 @@ func TestDataPointerOperations(t *testing.T) {
 			data:     make([]byte, DataChunkSize),
 			cellIndx: tt.initialCellIndx,
 		}
-		err := p.runCmd(tt.cmd)
+		err := p._runCmd(tt.cmd)
 		if err != nil {
 			if tt.expectedError == false {
 				t.Fatalf("%c %v error: %v", tt.cmd, tt, err)
@@ -138,10 +138,11 @@ var moveCpOperationsTests = []struct {
 func TestMoveCpOperations(t *testing.T) {
 	for _, tt := range moveCpOperationsTests {
 		p := NewProgram()
+		p.Reset()
 		p.code = []byte(tt.code)
 		p.cmdIndx = tt.initialCmdIndx
 		p.data[0] = tt.initialCellValue
-		err := p.runOneCmd()
+		err := p.runCmd()
 		if err != nil {
 			if tt.expectedError == false {
 				t.Fatalf("%v error: %v", tt, err)
@@ -162,7 +163,7 @@ func TestPrintCell(t *testing.T) {
 		data:   []byte{expected},
 		writer: testw,
 	}
-	err := p.runCmd('.')
+	err := p._runCmd('.')
 	if err != nil {
 		t.Fatalf("Failed to print cell value")
 	}
@@ -182,7 +183,7 @@ func TestScanCell(t *testing.T) {
 		data:   make([]byte, 1),
 		reader: testr,
 	}
-	err := p.runCmd(',')
+	err := p._runCmd(',')
 	if err != nil {
 		t.Fatalf("Failed to scan cell value")
 	}

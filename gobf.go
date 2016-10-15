@@ -35,7 +35,6 @@ func NewProgram() *Program {
 	return &Program{
 		code:    []byte{},
 		cmdIndx: -1,
-		data:    make([]byte, DataChunkSize),
 		reader:  os.Stdin,
 		writer:  os.Stdout,
 	}
@@ -62,7 +61,7 @@ func (p *Program) Reset() {
 // Run runs brainfuck program
 func (p *Program) Run() error {
 	for p.nextCmd() {
-		err := p.runOneCmd()
+		err := p.runCmd()
 		if err != nil {
 			return err
 		}
@@ -86,12 +85,11 @@ func (p *Program) currentCell() byte {
 	return p.data[p.cellIndx]
 }
 
-func (p *Program) runOneCmd() error {
-	cmd := p.cmd(p.cmdIndx)
-	return p.runCmd(cmd)
+func (p *Program) runCmd() error {
+	return p._runCmd(p.code[p.cmdIndx])
 }
 
-func (p *Program) runCmd(cmd byte) error {
+func (p *Program) _runCmd(cmd byte) error {
 	switch {
 	case cmd == '+':
 		return p.cmdIncCell()
@@ -201,7 +199,7 @@ func (p *Program) cmdBackward() error {
 }
 
 func (p *Program) cmdPrintCell() error {
-	_, err := fmt.Fprintf(p.writer, "%c", p.currentCell())
+	_, err := p.writer.Write([]byte{p.currentCell()})
 	return err
 }
 
