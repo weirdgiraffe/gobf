@@ -34,7 +34,7 @@ type Program struct {
 func NewProgram() *Program {
 	return &Program{
 		code:    []byte{},
-		cmdIndx: -1,
+		cmdIndx: 0,
 		reader:  os.Stdin,
 		writer:  os.Stdout,
 	}
@@ -51,17 +51,23 @@ func (p *Program) Load(r io.Reader) error {
 	return nil
 }
 
-// Reset resets program. RUn() will run program again
+// Reset resets program. Run() will run program again
 func (p *Program) Reset() {
-	p.data = make([]byte, DataChunkSize)
+	if len(p.data) > 0 {
+		p.data = make([]byte, len(p.data))
+	} else {
+		p.data = make([]byte, DataChunkSize)
+	}
+
 	p.cellIndx = 0
-	p.cmdIndx = -1
+	p.cmdIndx = 0
 }
 
 // Run runs brainfuck program
 func (p *Program) Run() error {
-	for p.nextCmd() {
-		err := p.runCmd()
+	var err error
+	for p.cmdIndx < len(p.code) {
+		p.cmdIndx, err = p.runCmd()
 		if err != nil {
 			return err
 		}
@@ -69,12 +75,27 @@ func (p *Program) Run() error {
 	return nil
 }
 
-func (p *Program) nextCmd() bool {
-	if p.cmdIndx+1 < len(p.code) {
-		p.cmdIndx++
-		return true
+func (p *Program) runCmd() (int, error) {
+	switch p.code[p.cmdIndx] {
+	default:
+		return p.cmdIndx + 1, nil
+	case '+':
+		return p.cmdIncCellValue()
+	case '-':
+		return p.cmdDecCellValue()
+	case '>':
+		return p.cmdNextCell()
+	case '<':
+		return p.cmdPrevCell()
+	case '[':
+		return p.cmdForward()
+	case ']':
+		return p.cmdBackward()
+	case '.':
+		return p.cmdPrintCell()
+	case ',':
+		return p.cmdScanCell()
 	}
-	return false
 }
 
 func (p *Program) cmd(indx int) byte {
@@ -85,129 +106,104 @@ func (p *Program) currentCell() byte {
 	return p.data[p.cellIndx]
 }
 
-func (p *Program) runCmd() error {
-	return p._runCmd(p.code[p.cmdIndx])
-}
-
-func (p *Program) _runCmd(cmd byte) error {
-	switch {
-	case cmd == '+':
-		return p.cmdIncCell()
-	case cmd == '-':
-		return p.cmdDecCell()
-	case cmd == '>':
-		return p.cmdNextCell()
-	case cmd == '<':
-		return p.cmdPrevCell()
-	case cmd == '[':
-		return p.cmdForward()
-	case cmd == ']':
-		return p.cmdBackward()
-	case cmd == '.':
-		return p.cmdPrintCell()
-	case cmd == ',':
-		return p.cmdScanCell()
+func (p *Program) opcount(op byte) int {
+	for i, c := range p.code[p.cmdIndx:] {
+		if c != op {
+			return i
+		}
 	}
-	return nil // simply ignore all unused symbols
+	return len(p.code)
 }
 
-func (p *Program) cmdIncCell() error {
-	if p.currentCell() == 255 && AllowOverflows == false {
-		return fmt.Errorf(
-			"Cell #%d overflow (offset: %d)",
-			p.cellIndx, p.cmdIndx)
+func (p *Program) cmdIncCellValue() (int, error) {
+	count := p.opcount('+')
+	p.data[p.cellIndx] += byte(count)
+	return p.cmdIndx + count, nil
+}
+
+func (p *Program) cmdDecCellValue() (int, error) {
+	count := p.opcount('-')
+	p.data[p.cellIndx] -= byte(count)
+	return p.cmdIndx + count, nil
+}
+
+func (p *Program) cmdNextCell() (int, error) {
+	count := p.opcount('>')
+	if p.cellIndx+count >= len(p.data) {
+		incSize := (count / DataChunkSize) + DataChunkSize
+		p.data = append(p.data, make([]byte, incSize)...)
 	}
-	p.data[p.cellIndx]++
-	return nil
+	p.cellIndx += count
+	return p.cmdIndx + count, nil
 }
 
-func (p *Program) cmdDecCell() error {
-	if p.currentCell() == 0 && AllowOverflows == false {
-		return fmt.Errorf(
-			"Cell #%d underflow (offset: %d)",
-			p.cellIndx, p.cmdIndx)
+func (p *Program) cmdPrevCell() (int, error) {
+	count := p.opcount('<')
+	if p.cellIndx-count < 0 {
+		return 0, fmt.Errorf("Data pointer underfow")
 	}
-	p.data[p.cellIndx]--
-	return nil
+	p.cellIndx -= count
+	return p.cmdIndx + count, nil
 }
 
-func (p *Program) cmdNextCell() error {
-	if p.cellIndx+1 >= len(p.data) {
-		newData := append(p.data, make([]byte, DataChunkSize)...)
-		p.data = newData
-	}
-	p.cellIndx++
-	return nil
-}
-
-func (p *Program) cmdPrevCell() error {
-	if p.cellIndx == 0 {
-		return fmt.Errorf("Data pointer underfow")
-	}
-	p.cellIndx--
-	return nil
-}
-
-func (p *Program) _cmdForward() error {
+func (p *Program) _cmdForward() (int, error) {
 	for seen, i := 0, p.cmdIndx+1; i < len(p.code); i++ {
 		switch p.cmd(i) {
 		case '[':
 			seen++
 		case ']':
 			if seen == 0 {
-				p.cmdIndx = i
-				return nil
+				return i + 1, nil
 			}
 			seen--
 		}
 	}
-	return fmt.Errorf("No closing ']' found")
+	return len(p.code), fmt.Errorf("No closing ']' found")
 }
 
-func (p *Program) cmdForward() error {
+func (p *Program) cmdForward() (int, error) {
 	// if current cell value is 0,
 	// increase cmdIndx until matching bracket
 	if p.currentCell() != 0 {
-		return nil
+		return p.cmdIndx + 1, nil
 	}
 	return p._cmdForward()
 }
 
-func (p *Program) _cmdBackward() error {
+func (p *Program) _cmdBackward() (int, error) {
 	for seen, i := 0, p.cmdIndx-1; i >= 0; i-- {
 		switch p.cmd(i) {
 		case ']':
 			seen++
 		case '[':
 			if seen == 0 {
-				p.cmdIndx = i
-				return nil
+				return i + 1, nil
 			}
 			seen--
 		}
 	}
-	return fmt.Errorf("No closing '[' found")
+	return len(p.code), fmt.Errorf("No closing '[' found")
 }
 
-func (p *Program) cmdBackward() error {
+func (p *Program) cmdBackward() (int, error) {
 	// if current cell value is not 0,
 	// decrease cmdIndx until matching bracket
 	if p.currentCell() == 0 {
-		return nil
+		return p.cmdIndx + 1, nil
 	}
 	return p._cmdBackward()
 }
 
-func (p *Program) cmdPrintCell() error {
+func (p *Program) cmdPrintCell() (int, error) {
 	_, err := p.writer.Write([]byte{p.currentCell()})
-	return err
+	return p.cmdIndx + 1, err
 }
 
-func (p *Program) cmdScanCell() error {
+func (p *Program) cmdScanCell() (int, error) {
 	var b = make([]byte, 1)
 	_, err := p.reader.Read(b)
 	if err == nil {
 		p.data[p.cellIndx] = b[0]
 	}
-	return err
+	return p.cmdIndx + 1, err
 }
