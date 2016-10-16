@@ -67,144 +67,60 @@ func (p *Program) Run() (err error) {
 		}
 	}()
 	for p.cmdIndx < len(p.code) {
-		p.cmdIndx = p.runCmd()
+		p.runCmd()
 	}
 	return nil
 }
 
-func (p *Program) runCmd() int {
+func (p *Program) runCmd() {
 	switch p.code[p.cmdIndx] {
-	default:
-		return p.cmdIndx + 1
 	case '+':
-		return p.cmdIncCellValue()
+		p.data[p.cellIndx]++
 	case '-':
-		return p.cmdDecCellValue()
+		p.data[p.cellIndx]--
 	case '>':
-		return p.cmdNextCell()
+		if p.cellIndx+1 > len(p.data) {
+			p.data = append(p.data, make([]uint8, DataChunkSize)...)
+		}
+		p.cellIndx++
 	case '<':
-		return p.cmdPrevCell()
+		p.cellIndx--
 	case '[':
-		return p.cmdForward()
+		if p.data[p.cellIndx] == 0 {
+			for depth := 1; depth > 0; {
+				p.cmdIndx++
+				switch p.code[p.cmdIndx] {
+				case '[':
+					depth++
+				case ']':
+					depth--
+				}
+			}
+		}
 	case ']':
-		return p.cmdBackward()
+		if p.data[p.cellIndx] != 0 {
+			for depth := 1; depth > 0; {
+				p.cmdIndx--
+				switch p.code[p.cmdIndx] {
+				case ']':
+					depth++
+				case '[':
+					depth--
+				}
+			}
+		}
 	case '.':
-		return p.cmdPrintCell()
+		_, err := p.writer.Write([]byte{p.data[p.cellIndx]})
+		if err != nil {
+			panic(err)
+		}
 	case ',':
-		return p.cmdScanCell()
-	}
-}
-
-func (p *Program) cmd(indx int) byte {
-	return p.code[indx]
-}
-
-func (p *Program) currentCell() byte {
-	return p.data[p.cellIndx]
-}
-
-func (p *Program) opcount(op byte) int {
-	for i, c := range p.code[p.cmdIndx:] {
-		if c != op {
-			return i
+		var b = make([]byte, 1)
+		_, err := p.reader.Read(b)
+		if err != nil {
+			panic(err)
 		}
+		p.data[p.cellIndx] = b[0]
 	}
-	return len(p.code)
-}
-
-func (p *Program) cmdIncCellValue() int {
-	count := p.opcount('+')
-	p.data[p.cellIndx] += byte(count)
-	return p.cmdIndx + count
-}
-
-func (p *Program) cmdDecCellValue() int {
-	count := p.opcount('-')
-	p.data[p.cellIndx] -= byte(count)
-	return p.cmdIndx + count
-}
-
-func (p *Program) cmdNextCell() int {
-	count := p.opcount('>')
-	if p.cellIndx+count >= len(p.data) {
-		incSize := (count / DataChunkSize) + DataChunkSize
-		p.data = append(p.data, make([]byte, incSize)...)
-	}
-	p.cellIndx += count
-	return p.cmdIndx + count
-}
-
-func (p *Program) cmdPrevCell() int {
-	count := p.opcount('<')
-	if p.cellIndx-count < 0 {
-		panic(fmt.Errorf("Data pointer underfow"))
-	}
-	p.cellIndx -= count
-	return p.cmdIndx + count
-}
-
-func (p *Program) _cmdForward() int {
-	for seen, i := 0, p.cmdIndx+1; i < len(p.code); i++ {
-		switch p.cmd(i) {
-		case '[':
-			seen++
-		case ']':
-			if seen == 0 {
-				return i + 1
-			}
-			seen--
-		}
-	}
-	panic(fmt.Errorf("No closing ']' found"))
-}
-
-func (p *Program) cmdForward() int {
-	// if current cell value is 0,
-	// increase cmdIndx until matching bracket
-	if p.currentCell() != 0 {
-		return p.cmdIndx + 1
-	}
-	return p._cmdForward()
-}
-
-func (p *Program) _cmdBackward() int {
-	for seen, i := 0, p.cmdIndx-1; i >= 0; i-- {
-		switch p.cmd(i) {
-		case ']':
-			seen++
-		case '[':
-			if seen == 0 {
-				return i + 1
-			}
-			seen--
-		}
-	}
-	panic(fmt.Errorf("No closing '[' found"))
-}
-
-func (p *Program) cmdBackward() int {
-	// if current cell value is not 0,
-	// decrease cmdIndx until matching bracket
-	if p.currentCell() == 0 {
-		return p.cmdIndx + 1
-	}
-	return p._cmdBackward()
-}
-
-func (p *Program) cmdPrintCell() int {
-	_, err := p.writer.Write([]byte{p.currentCell()})
-	if err != nil {
-		panic(err)
-	}
-	return p.cmdIndx + 1
-}
-
-func (p *Program) cmdScanCell() int {
-	var b = make([]byte, 1)
-	_, err := p.reader.Read(b)
-	if err != nil {
-		panic(err)
-	}
-	p.data[p.cellIndx] = b[0]
-	return p.cmdIndx + 1
+	p.cmdIndx++
 }

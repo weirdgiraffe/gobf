@@ -81,10 +81,9 @@ var operationsTestCases = []struct {
 func TestOperations(t *testing.T) {
 	for _, tt := range operationsTestCases {
 		p := initTestCase(t, tt.code, tt.initialState)
-		cmdIndx := p.runCmd()
-
-		if cmdIndx != tt.expectedState.cmdInx {
-			t.Errorf("Unexpected cmdIndx %v: %v", tt, cmdIndx)
+		p.runCmd()
+		if p.cmdIndx != tt.expectedState.cmdInx {
+			t.Errorf("Unexpected cmdIndx %v: %v", tt, p.cmdIndx)
 		}
 		if p.cellIndx != tt.expectedState.cellIndx {
 			t.Errorf("Unexpected cellIndx %v: %v", tt, p.cellIndx)
@@ -100,7 +99,7 @@ var errorTestCases = []struct {
 	code         string
 	initialState pstate
 }{
-	{"<", pstate{0, 0, 0}},
+	{"<+", pstate{0, 0, 0}},
 	{"[+", pstate{0, 0, 0}},
 	{"+]", pstate{1, 0, 1}},
 }
@@ -147,12 +146,12 @@ func TestScanCell(t *testing.T) {
 		reader:   testr,
 	}
 	p.runCmd()
-	if expected[0] != p.currentCell() {
-		t.Fatalf("Scan mismatch: %v != %v", expected[0], p.currentCell())
+	if expected[0] != p.data[p.cellIndx] {
+		t.Fatalf("Scan mismatch: %v != %v", expected[0], p.data[p.cellIndx])
 	}
 }
 
-func TestSmartDataReallocation(t *testing.T) {
+func TestDataReallocation(t *testing.T) {
 	dataChunkSizeOrig := DataChunkSize
 	defer func() { DataChunkSize = dataChunkSizeOrig }()
 	DataChunkSize = 2
@@ -163,18 +162,8 @@ func TestSmartDataReallocation(t *testing.T) {
 	if err != nil {
 		t.Errorf("Run() return error: %v", err)
 	}
-	if len(p.data) != 5 {
-		t.Errorf("Realloc failed: %v !=5", len(p.data))
-	}
-}
-
-func TestRunCanReturnError(t *testing.T) {
-	p := NewProgram()
-	p.Load(strings.NewReader("<"))
-	p.writer = ioutil.Discard
-	err := p.Run()
-	if err == nil {
-		t.Error("Run() doenst return errors")
+	if len(p.data) != 4 {
+		t.Errorf("Realloc failed: %v !=4", len(p.data))
 	}
 }
 
