@@ -81,11 +81,8 @@ var operationsTestCases = []struct {
 func TestOperations(t *testing.T) {
 	for _, tt := range operationsTestCases {
 		p := initTestCase(t, tt.code, tt.initialState)
-		cmdIndx, err := p.runCmd()
-		if err != nil {
-			t.Errorf("Failed to run %v: %v", tt, err)
-			continue
-		}
+		cmdIndx := p.runCmd()
+
 		if cmdIndx != tt.expectedState.cmdInx {
 			t.Errorf("Unexpected cmdIndx %v: %v", tt, cmdIndx)
 		}
@@ -111,7 +108,7 @@ var errorTestCases = []struct {
 func TestErors(t *testing.T) {
 	for _, tt := range errorTestCases {
 		p := initTestCase(t, tt.code, tt.initialState)
-		_, err := p.runCmd()
+		err := p.Run()
 		if err == nil {
 			t.Errorf("No error on %v", tt)
 		}
@@ -129,10 +126,7 @@ func TestPrintCell(t *testing.T) {
 		cellIndx: 0,
 		writer:   testw,
 	}
-	_, err := p.runCmd()
-	if err != nil {
-		t.Fatalf("Failed to print cell value")
-	}
+	p.runCmd()
 	testw.Flush()
 	if b.Len() == 0 {
 		t.Fatalf("Output buffer is empty")
@@ -152,10 +146,7 @@ func TestScanCell(t *testing.T) {
 		cellIndx: 0,
 		reader:   testr,
 	}
-	_, err := p.runCmd()
-	if err != nil {
-		t.Fatalf("Failed to scan cell value")
-	}
+	p.runCmd()
 	if expected[0] != p.currentCell() {
 		t.Fatalf("Scan mismatch: %v != %v", expected[0], p.currentCell())
 	}
