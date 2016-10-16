@@ -7,7 +7,6 @@
 package gobf
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -23,6 +22,8 @@ type Program struct {
 	cmdIndx  int
 	data     []byte
 	cellIndx int
+	prevbo   int
+	prevbc   int
 	reader   io.Reader
 	writer   io.Writer
 }
@@ -32,19 +33,21 @@ func NewProgram() *Program {
 	return &Program{
 		reader: os.Stdin,
 		writer: os.Stdout,
+		prevbc: -1,
+		prevbo: -1,
 	}
 }
 
 // Load load program code
-func (p *Program) Load(r io.Reader) error {
+func (p *Program) Load(r io.Reader) (err error) {
 	code, err := ioutil.ReadAll(r)
 	if err != nil {
-		return fmt.Errorf("Failed to read program code: %v", err)
+		return err
 	}
 	p.code = code
 	p.data = make([]byte, DataChunkSize)
 	p.Reset()
-	return nil
+	return err
 }
 
 // Reset resets program. Run() will run program again
@@ -77,7 +80,7 @@ func (p *Program) runCmd() {
 		p.data[p.cellIndx]--
 	case '>':
 		if p.cellIndx+1 > len(p.data) {
-			p.data = append(p.data, make([]uint8, DataChunkSize)...)
+			p.data = append(p.data, make([]byte, DataChunkSize)...)
 		}
 		p.cellIndx++
 	case '<':
@@ -96,6 +99,12 @@ func (p *Program) runCmd() {
 		}
 	case ']':
 		if p.data[p.cellIndx] != 0 {
+			bc := p.prevbc
+			p.prevbc = p.cmdIndx
+			if bc == p.cmdIndx && p.prevbo != -1 {
+				p.cmdIndx = p.prevbo + 1
+				return
+			}
 			for depth := 1; depth > 0; {
 				p.cmdIndx--
 				switch p.code[p.cmdIndx] {
@@ -105,6 +114,7 @@ func (p *Program) runCmd() {
 					depth--
 				}
 			}
+			p.prevbo = p.cmdIndx
 		}
 	case '.':
 		_, err := p.writer.Write([]byte{p.data[p.cellIndx]})
