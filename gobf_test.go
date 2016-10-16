@@ -232,7 +232,10 @@ by jim crawford (http://www (dot) goombas (dot) org/)
 	p.writer = ioutil.Discard
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		p.Run()
+		err := p.Run()
+		if err != nil {
+			b.Error(err)
+		}
 		p.Reset()
 	}
 }

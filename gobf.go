@@ -30,10 +30,8 @@ type Program struct {
 // NewProgram initialize empty program
 func NewProgram() *Program {
 	return &Program{
-		code:    []byte{},
-		cmdIndx: 0,
-		reader:  os.Stdin,
-		writer:  os.Stdout,
+		reader: os.Stdin,
+		writer: os.Stdout,
 	}
 }
 
@@ -44,16 +42,15 @@ func (p *Program) Load(r io.Reader) error {
 		return fmt.Errorf("Failed to read program code: %v", err)
 	}
 	p.code = code
+	p.data = make([]byte, DataChunkSize)
 	p.Reset()
 	return nil
 }
 
 // Reset resets program. Run() will run program again
 func (p *Program) Reset() {
-	if len(p.data) > 0 {
-		p.data = make([]byte, len(p.data))
-	} else {
-		p.data = make([]byte, DataChunkSize)
+	for i := range p.data {
+		p.data[i] = 0
 	}
 	p.cellIndx = 0
 	p.cmdIndx = 0
@@ -69,7 +66,7 @@ func (p *Program) Run() (err error) {
 	for p.cmdIndx < len(p.code) {
 		p.runCmd()
 	}
-	return nil
+	return err
 }
 
 func (p *Program) runCmd() {
