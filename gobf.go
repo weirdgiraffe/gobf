@@ -17,9 +17,6 @@ import (
 // increase count of program data cells
 var DataChunkSize = 30000
 
-// AllowOverflows do allow overflow (255+1) and underflow (0-1) of a cell value
-var AllowOverflows = true
-
 // Program represents brainfuck programm
 type Program struct {
 	code     []byte
