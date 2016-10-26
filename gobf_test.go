@@ -31,139 +31,112 @@ func TestLoadErrorOnReaderError(t *testing.T) {
 	}
 }
 
-func TestResetUsePreviousDataSize(t *testing.T) {
-	dataSize := 100
+func TestLoadErrorOnEmptyLoop(t *testing.T) {
 	p := NewProgram()
-	p.data = make([]byte, dataSize)
-	p.Reset()
-	if len(p.data) != dataSize {
-		t.Errorf("Previous data size ignored: %v != %v",
-			len(p.data), dataSize)
+	err := p.Load(strings.NewReader("[+-]"))
+	if err == nil {
+		t.Errorf("No error on empty loop")
 	}
 }
 
-type pstate struct {
-	cmdInx    int
-	cellIndx  int
-	cellValue byte
-}
-
-func initTestCase(t *testing.T, code string, state pstate) *Program {
-	p := NewProgram()
-	err := p.Load(strings.NewReader(code))
-	if err != nil {
-		t.Fatalf("Failed to load '%v' : %v", code, err)
+func iEqual(a, b []instruction) bool {
+	if a == nil && b == nil {
+		return true
 	}
-	p.cmdIndx = state.cmdInx
-	p.cellIndx = state.cellIndx
-	p.data[p.cellIndx] = state.cellValue
-	return p
+	if len(a) != len(b) {
+		return false
+	}
+	for i, v := range a {
+		if v != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
-var operationsTestCases = []struct {
-	code          string
-	initialState  pstate
-	expectedState pstate
+var compileCases = []struct {
+	text     string
+	expected []instruction
 }{
-	{"+", pstate{0, 0, 0}, pstate{1, 0, 1}},
-	{"-", pstate{0, 0, 1}, pstate{1, 0, 0}},
-	{">", pstate{0, 0, 0}, pstate{1, 1, 0}},
-	{"<", pstate{0, 1, 0}, pstate{1, 0, 0}},
-	{"[+]", pstate{0, 0, 1}, pstate{1, 0, 1}},
-	{"[+]", pstate{0, 0, 0}, pstate{3, 0, 0}},
-	{"[+[+]+]", pstate{0, 0, 0}, pstate{7, 0, 0}},
-	{"[+]", pstate{2, 0, 0}, pstate{3, 0, 0}},
-	{"[+]", pstate{2, 0, 1}, pstate{1, 0, 1}},
-	{"[+[+]+]", pstate{6, 0, 1}, pstate{1, 0, 1}},
-	{"ignore other symbols", pstate{0, 0, 0}, pstate{1, 0, 0}},
+	{"+", []instruction{{MODIFY, 1}}},
+	{"++", []instruction{{MODIFY, 2}}},
+	{"-", []instruction{{MODIFY, -1}}},
+	{"--", []instruction{{MODIFY, -2}}},
+	{"+-", []instruction{}},
+	{">", []instruction{{SHIFT, 1}}},
+	{"<", []instruction{{SHIFT, -1}}},
+	{".", []instruction{{PRINT, 1}}},
+	{",", []instruction{{SCAN, 1}}},
+	{
+		"[>++<-]",
+		[]instruction{
+			{BEGINLOOP, 5},
+			{SHIFT, 1},
+			{MODIFY, 2},
+			{SHIFT, -1},
+			{MODIFY, -1},
+			{ENDLOOP, 5},
+		},
+	},
+	{
+		"[>[+]<-]",
+		[]instruction{
+			{BEGINLOOP, 5},
+			{SHIFT, 1},
+			{CLEAR, 1},
+			{SHIFT, -1},
+			{MODIFY, -1},
+			{ENDLOOP, 5},
+		},
+	},
+	{
+		"[>[++-]<-]",
+		[]instruction{
+			{BEGINLOOP, 5},
+			{SHIFT, 1},
+			{CLEAR, 1},
+			{SHIFT, -1},
+			{MODIFY, -1},
+			{ENDLOOP, 5},
+		},
+	},
+	{
+		"[+[->++<]<-]",
+		[]instruction{
+			{BEGINLOOP, 10},
+			{MODIFY, 1},
+			{BEGINLOOP, 5},
+			{MODIFY, -1},
+			{SHIFT, 1},
+			{MODIFY, 2},
+			{SHIFT, -1},
+			{ENDLOOP, 5},
+			{SHIFT, -1},
+			{MODIFY, -1},
+			{ENDLOOP, 10},
+		},
+	},
+	{
+		"[->>>+<<<]",
+		[]instruction{
+			{ADD, 3},
+		},
+	},
+	{
+		"[>>+<<-]",
+		[]instruction{
+			{ADD, 2},
+		},
+	},
 }
 
-func TestOperations(t *testing.T) {
-	for _, tt := range operationsTestCases {
-		p := initTestCase(t, tt.code, tt.initialState)
-		p.runCmd()
-		if p.cmdIndx != tt.expectedState.cmdInx {
-			t.Errorf("Unexpected cmdIndx %v: %v", tt, p.cmdIndx)
+func TestCompilation(t *testing.T) {
+	for _, tt := range compileCases {
+		i, _ := compile([]byte(tt.text))
+		if iEqual(i, tt.expected) == false {
+			t.Errorf("mismatch '%v':\n%v\n!=\n%v",
+				tt.text, i, tt.expected)
 		}
-		if p.cellIndx != tt.expectedState.cellIndx {
-			t.Errorf("Unexpected cellIndx %v: %v", tt, p.cellIndx)
-		}
-		cellValue := p.data[p.cellIndx]
-		if cellValue != tt.expectedState.cellValue {
-			t.Errorf("Unexpected cellValue %v: %v", tt, cellValue)
-		}
-	}
-}
-
-var errorTestCases = []struct {
-	code         string
-	initialState pstate
-}{
-	{"<+", pstate{0, 0, 0}},
-	{"[+", pstate{0, 0, 0}},
-	{"+]", pstate{1, 0, 1}},
-}
-
-func TestErors(t *testing.T) {
-	for _, tt := range errorTestCases {
-		p := initTestCase(t, tt.code, tt.initialState)
-		err := p.Run()
-		if err == nil {
-			t.Errorf("No error on %v", tt)
-		}
-	}
-}
-
-func TestPrintCell(t *testing.T) {
-	var b bytes.Buffer
-	testw := bufio.NewWriter(&b)
-	expected := byte('A')
-	p := &Program{
-		code:     []byte{'.'},
-		cmdIndx:  0,
-		data:     []byte{expected},
-		cellIndx: 0,
-		writer:   testw,
-	}
-	p.runCmd()
-	testw.Flush()
-	if b.Len() == 0 {
-		t.Fatalf("Output buffer is empty")
-	}
-	if b.Bytes()[0] != expected {
-		t.Fatalf("Output mismatch: %v != %v", expected, b.Bytes())
-	}
-}
-
-func TestScanCell(t *testing.T) {
-	expected := []byte("A")
-	testr := bytes.NewReader(expected)
-	p := &Program{
-		code:     []byte{','},
-		cmdIndx:  0,
-		data:     make([]byte, 1),
-		cellIndx: 0,
-		reader:   testr,
-	}
-	p.runCmd()
-	if expected[0] != p.data[p.cellIndx] {
-		t.Fatalf("Scan mismatch: %v != %v", expected[0], p.data[p.cellIndx])
-	}
-}
-
-func TestDataReallocation(t *testing.T) {
-	dataChunkSizeOrig := DataChunkSize
-	defer func() { DataChunkSize = dataChunkSizeOrig }()
-	DataChunkSize = 2
-	p := NewProgram()
-	p.Load(strings.NewReader(">>>"))
-	p.writer = ioutil.Discard
-	err := p.Run()
-	if err != nil {
-		t.Errorf("Run() return error: %v", err)
-	}
-	if len(p.data) != 4 {
-		t.Errorf("Realloc failed: %v !=4", len(p.data))
 	}
 }
 
@@ -194,8 +167,7 @@ func TestRunHelloWorld(t *testing.T) {
 	}
 }
 
-func BenchmarkBeers(b *testing.B) {
-	bfBeerText := `99 bottles in 1752 brainfuck instructions
+var bfBeerText = `99 bottles in 1752 brainfuck instructions
 by jim crawford (http://www (dot) goombas (dot) org/)
 >++++++++++[<++++++++++>-]<->>>>>+++[>+++>+++<<-]<<<<+<[>[>+
 >+<<-]>>[-<<+>>]++++>+<[-<->]<[[-]>>-<<]>>[[-]<<+>>]<<[[-]>>
@@ -227,8 +199,55 @@ by jim crawford (http://www (dot) goombas (dot) org/)
 .---.++++++.-------.----------.[-]>[-]<<<.[-]]<[>+>+<<-]>>[-
 <<+>>]++++>+<[-<->]<[[-]>>-<<]>>[[-]<<+>>]<<[[-]++++++++++.[
 -]<[-]>]<+<]`
+
+func BenchmarkBeerCompile(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_, _ = compile([]byte(bfBeerText))
+	}
+}
+
+func TestRunBeer(t *testing.T) {
+	var expected string
+	for i := 99; i > 2; i-- {
+		expected += fmt.Sprintf("%d Bottles of beer on the wall\n", i)
+		expected += fmt.Sprintf("%d Bottles of beer\n", i)
+		expected += "Take one down and pass it around\n"
+		expected += fmt.Sprintf("%d Bottles of beer on the wall\n\n", i-1)
+	}
+	expected += "2 Bottles of beer on the wall\n"
+	expected += "2 Bottles of beer\n"
+	expected += "Take one down and pass it around\n"
+	expected += "1 Bottle of beer on the wall\n\n"
+	expected += "1 Bottle of beer on the wall\n"
+	expected += "1 Bottle of beer\n"
+	expected += "Take one down and pass it around\n"
+	expected += "0 Bottles of beer on the wall\n\n"
+
+	var b bytes.Buffer
 	p := NewProgram()
 	p.Load(strings.NewReader(bfBeerText))
+	bufwriter := bufio.NewWriter(&b)
+	p.writer = bufwriter
+	err := p.Run()
+	if err != nil {
+		t.Errorf("Failed to Run 'Beer' program: %v", err)
+	}
+	bufwriter.Flush()
+	if b.Len() == 0 {
+		t.Fatalf("Output buffer is empty")
+	}
+
+	if string(b.Bytes()) != expected {
+		t.Fatalf("Output mismatch: %v != %v",
+			string(b.Bytes()),
+			expected)
+	}
+}
+
+func BenchmarkBeerRun(b *testing.B) {
+	p := NewProgram()
+	p.Load(strings.NewReader(bfBeerText))
+	//fmt.Println(p.code)
 	p.writer = ioutil.Discard
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -236,6 +255,5 @@ by jim crawford (http://www (dot) goombas (dot) org/)
 		if err != nil {
 			b.Error(err)
 		}
-		p.Reset()
 	}
 }
