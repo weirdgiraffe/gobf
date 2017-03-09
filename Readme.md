@@ -2,7 +2,7 @@
 
 ## And there is some comparison of brainfuck clients [here](https://github.com/weirdgiraffe/bfbench)
 
-## Interpreter has a commandline client [gobfcli](https://github.com/weirdgiraffe/gobf/gobfcli/)
+## Interpreter has a commandline client: **gobfcli**
 
 
 `gobfcli` simply read `stdin`, interpret Brainfuck and do output to `stdout`
